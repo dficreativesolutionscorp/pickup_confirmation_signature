@@ -497,6 +497,90 @@
 
 
 
+        /* Refresh Button */
+        .refresh-button {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: var(--color-surface);
+            color: var(--color-primary);
+            border: 1px solid var(--color-primary);
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            display: none;
+        }
+
+        .refresh-button:hover {
+            background-color: var(--color-primary);
+            color: var(--color-surface);
+        }
+
+        .refresh-button.spinning {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: translateY(-50%) rotate(0deg); }
+            to { transform: translateY(-50%) rotate(360deg); }
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: var(--color-surface);
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .modal-content h3 {
+            margin-bottom: 20px;
+            color: var(--color-destructive);
+        }
+
+        .modal-content p {
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .modal-buttons button {
+            min-width: 120px;
+        }
+
+        /* Spinner */
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--color-primary);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
         /* Utilities */
         .error {
             color: var(--color-destructive);
@@ -539,6 +623,7 @@
     <div class="header">
         <img src="https://96da7cca2c986bf3ad2018ee4004e4c7.cdn.bubble.io/f1718641957034x160202349751742620/DFI%2BRentals%2BLogo%2BInverse.png" alt="DFI Rentals" class="logo">
         <div id="currentDateTime" style="font-size: 14px;"></div>
+        <button id="refreshButton" class="refresh-button" onclick="refreshOrder()">↻ Refresh</button>
     </div>
 
     <div class="container">
@@ -556,12 +641,26 @@
 
         <!-- Loading Section -->
         <div id="loading" class="loading hidden">
-            <p>Loading order details...</p>
+            <div class="spinner"></div>
+            <p style="margin-top: 20px;">Loading order details...</p>
         </div>
 
         <!-- Order Details Section -->
         <div id="orderDetails" class="content hidden">
             <!-- Order will be populated here -->
+        </div>
+    </div>
+
+   <!-- Modal -->
+    <div id="warningModal" class="modal">
+        <div class="modal-content">
+            <h3>⚠️ Important Warning</h3>
+            <p>Are you sure you have checked all the items on your order?</p>
+            <p><strong>By checking this box, you are taking full responsibility for all items, including any loss and damage from this point forward, and you confirm there is no pre-existing damage.</strong></p>
+            <div class="modal-buttons">
+                <button class="button-secondary" onclick="closeModal()">Cancel</button>
+                <button onclick="confirmLiability()">I Understand</button>
+            </div>
         </div>
     </div>
 
@@ -596,6 +695,7 @@
         let checkedItems = new Set();
         let isDrawing = false;
         let signatureData = null;
+        let pendingLiabilityCheck = false;
 
         // Update date/time
         function updateDateTime() {
@@ -749,7 +849,7 @@
                         </label>
                         <label class="terms-checkbox">
                             <input type="checkbox" id="confirmGoodCondition" onchange="updateConfirmButton()">
-                            I confirm that all items are in good working condition unless otherwise indicated.
+                            I confirm that all items are in good working condition, free from any damages, physical or functional, unless otherwise indicated.
                         </label>
                         <label class="terms-checkbox">
                             <input type="checkbox" id="acceptTerms" onchange="updateConfirmButton()">
@@ -760,7 +860,7 @@
                             I warrant that I am either the customer listed above OR an authorized agent of the customer listed above.
                         </label>
                         <label class="terms-checkbox">
-                            <input type="checkbox" id="acceptLiability" onchange="updateConfirmButton()">
+                            <input type="checkbox" id="acceptLiability" onchange="handleLiabilityCheck()">
                             I understand that by signing here, I am taking responsibility and liability for these items, including any loss or damage.
                         </label>
                     </div>
@@ -802,6 +902,9 @@
             displayLineItems();
             initializeSignaturePad();
             updateSignatureSection();
+            
+            // Show refresh button
+            document.getElementById('refreshButton').style.display = 'block';
         }
 
         /*
@@ -1112,7 +1215,9 @@ function toggleCustomEmail() {
                 const docData = await docResponse.json();
                 currentDocumentId = docData.data.id;
                 
-                // Step 2: Update document footer with signer name
+                // Step 2: Update document footer with signer name and timestamp
+                const now = new Date();
+                const timestamp = formatDateTime(now.toISOString());
                 const updateResponse = await fetch(`${API_BASE}/documents/${currentDocumentId}`, {
                     method: 'PUT',
                     headers: {
@@ -1124,7 +1229,7 @@ function toggleCustomEmail() {
                             id: currentDocumentId,
                             type: 'documents',
                             attributes: {
-                                footer: `Signed By: ${signerName}`
+                                footer: `Signed By: ${signerName} | Signed At: ${timestamp}`
                             }
                         }
                     })
@@ -1298,6 +1403,9 @@ showLockScreen();
             
             // Reset slide position
             document.getElementById('slideTrack').style.transform = 'translateX(0)';
+            
+            // Hide refresh button
+            document.getElementById('refreshButton').style.display = 'none';
         }
 
         /*
@@ -1311,16 +1419,26 @@ showLockScreen();
                    date.getFullYear();
         }
 
-        function formatDateTime(dateString) {
+       function formatDateTime(dateString) {
             if (!dateString) return 'N/A';
-            const date = new Date(dateString);
-            const dateStr = formatDate(dateString);
-            const hours = date.getHours();
-            const minutes = date.getMinutes();
+            // Parse the UTC date
+            const utcDate = new Date(dateString);
+            
+            // Convert to PST (UTC-8) or PDT (UTC-7) depending on DST
+            // For simplicity, we'll use UTC-8 (PST)
+            const pstDate = new Date(utcDate.getTime() - (8 * 60 * 60 * 1000));
+            
+            const month = (pstDate.getUTCMonth() + 1).toString().padStart(2, '0');
+            const day = pstDate.getUTCDate().toString().padStart(2, '0');
+            const year = pstDate.getUTCFullYear();
+            const dateStr = month + '-' + day + '-' + year;
+            
+            const hours = pstDate.getUTCHours();
+            const minutes = pstDate.getUTCMinutes();
             const ampm = hours >= 12 ? 'PM' : 'AM';
             const displayHours = hours % 12 || 12;
             const timeStr = displayHours.toString().padStart(2, '0') + ':' + 
-                           minutes.toString().padStart(2, '0') + ' ' + ampm;
+                           minutes.toString().padStart(2, '0') + ' ' + ampm + ' PST';
             return dateStr + ' ' + timeStr;
         }
 
@@ -1331,6 +1449,95 @@ showLockScreen();
 
         function showError(message) {
             document.getElementById('errorMessage').textContent = message;
+        }
+
+        /*
+         * Refresh order while maintaining checked items
+         */
+        async function refreshOrder() {
+            if (!currentOrder) return;
+            
+            // Add spinning animation
+            document.getElementById('refreshButton').classList.add('spinning');
+            
+            // Clear terms checkboxes
+            document.getElementById('confirmAllPresent').checked = false;
+            document.getElementById('confirmGoodCondition').checked = false;
+            document.getElementById('acceptTerms').checked = false;
+            document.getElementById('authorizedAgent').checked = false;
+            document.getElementById('acceptLiability').checked = false;
+            
+            // Clear signature and name
+            clearSignature();
+            document.getElementById('signerName').value = '';
+            
+            // Fetch updated order
+            try {
+                const response = await fetch(`https://dfi-rentals.booqable.com/api/1/orders/${currentOrder.number}`, {
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to refresh order');
+                }
+                
+                const data = await response.json();
+                currentOrder = data.order;
+                displayOrder();
+                
+                // Restore checked items based on line IDs
+                document.querySelectorAll('.item-checkbox').forEach(checkbox => {
+                    const lineId = checkbox.getAttribute('data-line-id');
+                    if (checkedItems.has(lineId)) {
+                        checkbox.checked = true;
+                    }
+                });
+                
+                updateSignatureSection();
+                updateConfirmButton();
+                
+            } catch (error) {
+                alert('Error refreshing order: ' + error.message);
+            } finally {
+                document.getElementById('refreshButton').classList.remove('spinning');
+            }
+        }
+
+        /*
+         * Handle liability checkbox with modal
+         */
+        function handleLiabilityCheck() {
+            const checkbox = document.getElementById('acceptLiability');
+            
+            if (checkbox.checked) {
+                pendingLiabilityCheck = true;
+                checkbox.checked = false;
+                document.getElementById('warningModal').style.display = 'flex';
+            } else {
+                updateConfirmButton();
+            }
+        }
+
+        /*
+         * Close modal
+         */
+        function closeModal() {
+            document.getElementById('warningModal').style.display = 'none';
+            pendingLiabilityCheck = false;
+            updateConfirmButton();
+        }
+
+        /*
+         * Confirm liability from modal
+         */
+        function confirmLiability() {
+            document.getElementById('warningModal').style.display = 'none';
+            document.getElementById('acceptLiability').checked = true;
+            pendingLiabilityCheck = false;
+            updateConfirmButton();
         }
 
         // Allow Enter key to submit
