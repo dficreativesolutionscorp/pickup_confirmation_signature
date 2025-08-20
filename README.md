@@ -10,6 +10,7 @@ This is a web-based tablet application designed for DFI Rentals to digitally con
 - Simple order lookup by order number
 - Fetches complete order details from Booqable API
 - Displays customer information, rental dates, and pricing
+- Refresh button to update order details while maintaining item check states
 
 ### 2. Equipment Checklist
 - Interactive checkbox list for all rental items
