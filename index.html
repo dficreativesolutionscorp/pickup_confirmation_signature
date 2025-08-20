@@ -1311,7 +1311,11 @@ function toggleCustomEmail() {
                 
                 // Step 2: Update document footer with signer name and timestamp
                 const now = new Date();
-                const timestamp = formatDateTime(now.toISOString());
+                // Convert current time to PST format without 'Z' suffix
+                const pstOffset = 8 * 60; // PST is UTC-8
+                const pstTime = new Date(now.getTime() - (pstOffset * 60 * 1000));
+                const pstString = pstTime.toISOString().slice(0, -1); // Remove the 'Z'
+                const timestamp = formatDateTime(pstString);
                 const updateResponse = await fetch(`${API_BASE}/documents/${currentDocumentId}`, {
                     method: 'PUT',
                     headers: {
