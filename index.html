@@ -521,6 +521,80 @@
             animation: spin 1s linear infinite;
         }
 
+        /* Exit Button */
+        .exit-button {
+            position: absolute;
+            right: 120px;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: var(--color-destructive);
+            color: var(--color-surface);
+            border: none;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            display: none;
+        }
+
+        .exit-button:hover {
+            opacity: 0.9;
+        }
+
+        /* Exit Modal */
+        .exit-modal {
+            display: none;
+            position: fixed;
+            z-index: 999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .exit-modal-content {
+            background-color: var(--color-surface);
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .exit-modal-content h3 {
+            margin-bottom: 20px;
+            color: var(--color-text-primary);
+        }
+
+        .exit-modal-content p {
+            margin-bottom: 20px;
+            color: var(--color-text-secondary);
+        }
+
+        .passcode-input-group {
+            margin-bottom: 20px;
+        }
+
+        .passcode-input-group input {
+            width: 200px;
+            text-align: center;
+            font-size: 20px;
+            letter-spacing: 5px;
+        }
+
+        .exit-modal-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .exit-modal-buttons button {
+            min-width: 100px;
+        }
+
         @keyframes spin {
             from { transform: translateY(-50%) rotate(0deg); }
             to { transform: translateY(-50%) rotate(360deg); }
@@ -623,7 +697,10 @@
     <div class="header">
         <img src="https://96da7cca2c986bf3ad2018ee4004e4c7.cdn.bubble.io/f1718641957034x160202349751742620/DFI%2BRentals%2BLogo%2BInverse.png" alt="DFI Rentals" class="logo">
         <div id="currentDateTime" style="font-size: 14px;"></div>
-        <button id="refreshButton" class="refresh-button" onclick="refreshOrder()">↻ Refresh</button>
+        <div style="display: flex; gap: 10px;">
+            <button id="exitButton" class="exit-button" onclick="showExitModal()">✕ Exit</button>
+            <button id="refreshButton" class="refresh-button" onclick="refreshOrder()">↻ Refresh</button>
+        </div>
     </div>
 
     <div class="container">
@@ -660,6 +737,22 @@
             <div class="modal-buttons">
                 <button class="button-secondary" onclick="closeModal()">Cancel</button>
                 <button onclick="confirmLiability()">I Understand</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Exit Modal -->
+    <div id="exitModal" class="exit-modal">
+        <div class="exit-modal-content">
+            <h3>Exit Order</h3>
+            <p>Enter agent passcode to exit this order:</p>
+            <div class="passcode-input-group">
+                <input type="password" id="exitPasscode" placeholder="Enter code" maxlength="4" autocomplete="off">
+                <div id="exitPasscodeError" class="error" style="margin-top: 10px;"></div>
+            </div>
+            <div class="exit-modal-buttons">
+                <button class="button-secondary" onclick="closeExitModal()">Cancel</button>
+                <button onclick="validateExitPasscode()">Exit Order</button>
             </div>
         </div>
     </div>
@@ -903,8 +996,9 @@
             initializeSignaturePad();
             updateSignatureSection();
             
-            // Show refresh button
+            // Show refresh and exit buttons
             document.getElementById('refreshButton').style.display = 'block';
+            document.getElementById('exitButton').style.display = 'block';
         }
 
         /*
@@ -1404,8 +1498,9 @@ showLockScreen();
             // Reset slide position
             document.getElementById('slideTrack').style.transform = 'translateX(0)';
             
-            // Hide refresh button
+            // Hide refresh and exit buttons
             document.getElementById('refreshButton').style.display = 'none';
+            document.getElementById('exitButton').style.display = 'none';
         }
 
         /*
@@ -1420,27 +1515,29 @@ showLockScreen();
         }
 
        function formatDateTime(dateString) {
-            if (!dateString) return 'N/A';
-            // Parse the UTC date
-            const utcDate = new Date(dateString);
-            
-            // Convert to PST (UTC-8) or PDT (UTC-7) depending on DST
-            // For simplicity, we'll use UTC-8 (PST)
-            const pstDate = new Date(utcDate.getTime() - (8 * 60 * 60 * 1000));
-            
-            const month = (pstDate.getUTCMonth() + 1).toString().padStart(2, '0');
-            const day = pstDate.getUTCDate().toString().padStart(2, '0');
-            const year = pstDate.getUTCFullYear();
-            const dateStr = month + '-' + day + '-' + year;
-            
-            const hours = pstDate.getUTCHours();
-            const minutes = pstDate.getUTCMinutes();
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            const displayHours = hours % 12 || 12;
-            const timeStr = displayHours.toString().padStart(2, '0') + ':' + 
-                           minutes.toString().padStart(2, '0') + ' ' + ampm + ' PST';
-            return dateStr + ' ' + timeStr;
-        }
+    if (!dateString) return 'N/A';
+    
+    // The API returns PST times with 'Z' suffix, so we need to parse it as local time
+    // Remove the 'Z' to treat it as local time, then format it
+    const cleanDateString = dateString.replace('Z', '');
+    const date = new Date(cleanDateString);
+    
+    // Format the date
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const dateStr = month + '-' + day + '-' + year;
+    
+    // Format the time
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    const timeStr = displayHours.toString().padStart(2, '0') + ':' + 
+                   minutes.toString().padStart(2, '0') + ' ' + ampm + ' PST';
+    
+    return dateStr + ' ' + timeStr;
+}
 
         function formatCurrency(cents) {
             if (cents === null || cents === undefined) return '$0.00';
@@ -1539,6 +1636,55 @@ showLockScreen();
             pendingLiabilityCheck = false;
             updateConfirmButton();
         }
+
+         /*
+         * Show exit modal
+         */
+        function showExitModal() {
+            document.getElementById('exitModal').style.display = 'flex';
+            document.getElementById('exitPasscode').value = '';
+            document.getElementById('exitPasscodeError').textContent = '';
+            document.getElementById('exitPasscode').focus();
+        }
+
+        /*
+         * Close exit modal
+         */
+        function closeExitModal() {
+            document.getElementById('exitModal').style.display = 'none';
+            document.getElementById('exitPasscode').value = '';
+            document.getElementById('exitPasscodeError').textContent = '';
+        }
+
+        /*
+         * Validate exit passcode
+         */
+        function validateExitPasscode() {
+            const passcode = document.getElementById('exitPasscode').value;
+            
+            if (passcode === '1080') {
+                closeExitModal();
+                resetApp();
+            } else {
+                document.getElementById('exitPasscodeError').textContent = 'Incorrect passcode';
+                document.getElementById('exitPasscode').value = '';
+                setTimeout(() => {
+                    document.getElementById('exitPasscodeError').textContent = '';
+                }, 2000);
+            }
+        }
+
+        // Add event listener for Enter key in exit passcode field
+        document.addEventListener('DOMContentLoaded', function() {
+            const exitPasscodeInput = document.getElementById('exitPasscode');
+            if (exitPasscodeInput) {
+                exitPasscodeInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        validateExitPasscode();
+                    }
+                });
+            }
+        });
 
         // Allow Enter key to submit
         document.getElementById('orderNumber').addEventListener('keypress', function(e) {
