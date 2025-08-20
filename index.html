@@ -1310,12 +1310,7 @@ function toggleCustomEmail() {
                 currentDocumentId = docData.data.id;
                 
                 // Step 2: Update document footer with signer name and timestamp
-                const now = new Date();
-                // Convert current time to PST format without 'Z' suffix
-                const pstOffset = 8 * 60; // PST is UTC-8
-                const pstTime = new Date(now.getTime() - (pstOffset * 60 * 1000));
-                const pstString = pstTime.toISOString().slice(0, -1); // Remove the 'Z'
-                const timestamp = formatDateTime(pstString);
+                const timestamp = formatCurrentDateTime();
                 const updateResponse = await fetch(`${API_BASE}/documents/${currentDocumentId}`, {
                     method: 'PUT',
                     headers: {
@@ -1546,6 +1541,29 @@ showLockScreen();
         function formatCurrency(cents) {
             if (cents === null || cents === undefined) return '$0.00';
             return '$' + (cents / 100).toFixed(2);
+        }
+
+        /*
+         * Format current local time for display
+         */
+        function formatCurrentDateTime() {
+            const now = new Date();
+            
+            // Format the date
+            const month = (now.getMonth() + 1).toString().padStart(2, '0');
+            const day = now.getDate().toString().padStart(2, '0');
+            const year = now.getFullYear();
+            const dateStr = month + '-' + day + '-' + year;
+            
+            // Format the time
+            const hours = now.getHours();
+            const minutes = now.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const displayHours = hours % 12 || 12;
+            const timeStr = displayHours.toString().padStart(2, '0') + ':' + 
+                           minutes.toString().padStart(2, '0') + ' ' + ampm + ' PST';
+            
+            return dateStr + ' ' + timeStr;
         }
 
         function showError(message) {
